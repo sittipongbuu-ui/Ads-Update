@@ -5,7 +5,7 @@ import {
   Image as ImageIcon, MapPin, Users, UploadCloud,
   Save, Plus, Trash2, History,
   Trophy, LayoutDashboard, BarChart2, Calendar, Clock, Building,
-  ChevronRight
+  ChevronRight, HelpCircle
 } from 'lucide-react';
 
 const today = new Date().toISOString().split('T')[0];
@@ -107,10 +107,43 @@ const App = () => {
 
     const calculatedMetrics = { cpm, frequency, ctr, cpa, totalResults, cpaStatus, ctrStatus, cpmStatus, freqStatus };
     
-    let topAdvice = [cpmStatus === 'bad' ? `CPM แพง: ตลาดมีการแข่งขันสูง แนะนำให้ลองขยายกลุ่มเป้าหมาย` : "ต้นทุนการเข้าถึงกลุ่มเป้าหมายเหมาะสม"];
-    let midAdvice = [ctrStatus === 'bad' ? "CTR ต่ำ: งานภาพยังไม่ดึงดูดพอ ควรเปลี่ยนภาพปกหรือพาดหัวใหม่" : "งานภาพทำงานได้ดี ดึงดูดสายตาคนได้"];
-    let botAdvice = [cpaStatus === 'bad' ? "CPA แพง: ลองปรับโปรโมชั่นหรือตรวจสอบคุณภาพ Lead" : "ต้นทุนรายชื่อลูกค้าอยู่ในเกณฑ์ดี"];
-    let overallVerdict = cpaStatus === 'bad' ? "แคมเปญประสิทธิภาพต่ำ ต้องปรับปรุงด่วน" : "แคมเปญทำงานได้ดี ควรรักษาระดับนี้ไว้";
+    let topAdvice = [];
+    let midAdvice = [];
+    let botAdvice = [];
+
+    // Detailed Reasoning Logic
+    // 1. CPM Analysis (Competition & Audience)
+    if (cpmStatus === 'bad') {
+      topAdvice.push(`CPM แพง (฿${formatMoney(cpm)}): ตลาดอสังหาฯ ปัจจุบันมีการแข่งขันประมูลพื้นที่สูงมาก หรือ "กลุ่มเป้าหมายที่คุณเลือก" อาจจะแคบเกินไป ทำให้ Facebook ต้องแย่งชิงการแสดงผลในราคาสูง`);
+    } else {
+      topAdvice.push(`CPM เหมาะสม (฿${formatMoney(cpm)}): ค่าเฉลี่ยต่ำกว่า 300 บาท ถือว่าการตั้งค่ากลุ่มเป้าหมายและการประมูลพื้นที่ทำได้ดี เข้าถึงคนได้ในราคาที่คุ้มค่า`);
+    }
+
+    // 2. Frequency Analysis (Saturation)
+    if (freqStatus === 'bad') {
+      topAdvice.push(`ความถี่สูง (${formatDecimal(frequency)} รอบ): คนเดิมเริ่มเห็นโฆษณาซ้ำบ่อยเกินไป (Ad Fatigue) ซึ่งมักจะทำให้ค่าคลิกแพงขึ้นและประสิทธิภาพลดลง ควรขยายรัศมีหรือเพิ่มกลุ่มเป้าหมายใหม่`);
+    } else if (freqStatus === 'warning') {
+      topAdvice.push(`ความถี่เริ่มขยับขึ้น (${formatDecimal(frequency)} รอบ): เริ่มมีการแสดงผลซ้ำให้กลุ่มเดิม เตรียมทำ Creative ชุดใหม่เพื่อลดความน่าเบื่อ`);
+    }
+
+    // 3. CTR Analysis (Creative Appeal)
+    if (ctrStatus === 'bad') {
+      midAdvice.push(`CTR ต่ำ (${formatDecimal(ctr)}%): ปกติอสังหาฯ ควรมีคนคลิกอย่างน้อย 1% ขึ้นไป หากต่ำกว่านี้แสดงว่า "งานภาพหรือพาดหัว" ยังไม่แรงพอที่จะหยุดนิ้วลูกค้าได้`);
+    } else {
+      midAdvice.push(`CTR ดี (${formatDecimal(ctr)}%): งานภาพดึงดูดใจได้มาตรฐานอุตสาหกรรม (เกิน 1.5% คือยอดเยี่ยม) คนมีความสนใจอยากอ่านรายละเอียดโครงการต่อ`);
+    }
+
+    // 4. CPA Analysis (Final Efficiency)
+    const benchmark = data.objective === 'chat' ? 400 : 1200;
+    if (cpaStatus === 'bad') {
+      botAdvice.push(`CPA สูงเกินมาตรฐาน (฿${formatMoney(cpa)}): ต้นทุนต่อรายชื่อสูงกว่าเกณฑ์ ${formatMoney(benchmark)} บาท อาจเกิดจาก 2 ปัจจัย: รูปไม่น่าสนใจทำให้คนทักน้อย หรือ ราคาบ้าน/โปรโมชั่นยังไม่จูงใจพอเมื่อเทียบกับคู่แข่งในทำเลเดียวกัน`);
+    } else if (cpaStatus === 'warning') {
+      botAdvice.push(`CPA ระดับกลาง (฿${formatMoney(cpa)}): อยู่ในเกณฑ์ที่รับได้ แต่ต้องเน้นการคัดกรอง (Qualify) ลูกค้าจากแอดมินหรือเซลส์ให้เข้มงวดเพื่อให้คุ้มค่าเงินที่จ่ายไป`);
+    } else {
+      botAdvice.push(`CPA ยอดเยี่ยม (฿${formatMoney(cpa)}): ต้นทุนต่ำกว่าเกณฑ์มาตรฐานโครงการ ถือว่าเป็นแคมเปญที่ประสบความสำเร็จในการดึงคนทักในราคาถูก`);
+    }
+
+    let overallVerdict = cpaStatus === 'bad' ? "แคมเปญมีต้นทุนสูงกว่ามาตรฐานที่ควรจะเป็น ต้องปรับปรุงทั้งงานภาพและข้อเสนอ" : "แคมเปญทำงานได้ตามเกณฑ์มาตรฐาน ควรรักษาระดับนี้ไว้และทำ A/B Test เพื่อยอดขายที่มั่นคง";
 
     return { 
       metrics: calculatedMetrics, 
@@ -367,26 +400,57 @@ const App = () => {
 
                   <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl space-y-8 relative overflow-hidden">
                     <h3 className="font-black text-2xl flex items-center gap-3 text-slate-800 italic uppercase tracking-tighter border-b border-slate-50 pb-6">
-                      <Info className="text-blue-500 w-7 h-7"/> Portfolio Analysis
+                      <Info className="text-blue-500 w-7 h-7"/> Portfolio Analysis & Insights
                     </h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
                       <div className="space-y-5">
                         <div className="flex items-center gap-2 font-black text-indigo-600 text-[11px] uppercase tracking-widest italic bg-indigo-50 px-3 py-1.5 rounded-full w-fit">
-                          <BarChart2 className="w-3.5 h-3.5"/> Data Insights
+                          <BarChart2 className="w-3.5 h-3.5"/> Performance Breakdown
                         </div>
-                        <div className="space-y-4 text-sm text-slate-600 pl-4 border-l-4 border-indigo-100">
-                          {analysis.botFunnel.map((t:any, i:any) => <p key={i} className="font-bold flex gap-2"><ChevronRight className="w-4 h-4 shrink-0 text-indigo-300"/> {t}</p>)}
-                          {analysis.topFunnel.map((t:any, i:any) => <p key={i} className="font-bold flex gap-2"><ChevronRight className="w-4 h-4 shrink-0 text-indigo-300"/> {t}</p>)}
+                        <div className="space-y-6 text-sm text-slate-600 pl-4 border-l-4 border-indigo-100">
+                          {analysis.botFunnel.map((t:any, i:any) => (
+                            <div key={i} className="space-y-1">
+                              <p className="font-black text-slate-800 flex items-start gap-2 italic uppercase text-xs">
+                                <ChevronRight className="w-4 h-4 shrink-0 text-indigo-400 mt-0.5"/> Logic / Result
+                              </p>
+                              <p className="font-medium leading-relaxed pl-6 text-slate-600">{t}</p>
+                            </div>
+                          ))}
+                          {analysis.topFunnel.map((t:any, i:any) => (
+                            <div key={i} className="space-y-1">
+                              <p className="font-black text-slate-800 flex items-start gap-2 italic uppercase text-xs">
+                                <ChevronRight className="w-4 h-4 shrink-0 text-indigo-400 mt-0.5"/> Delivery Analysis
+                              </p>
+                              <p className="font-medium leading-relaxed pl-6 text-slate-600">{t}</p>
+                            </div>
+                          ))}
                         </div>
                       </div>
 
                       <div className="space-y-5">
                         <div className="flex items-center gap-2 font-black text-blue-600 text-[11px] uppercase tracking-widest italic bg-blue-50 px-3 py-1.5 rounded-full w-fit">
-                          <ImageIcon className="w-3.5 h-3.5"/> Creative Feedback
+                          <ImageIcon className="w-3.5 h-3.5"/> Creative & Content
                         </div>
-                        <div className="space-y-4 text-sm text-slate-600 pl-4 border-l-4 border-blue-100">
-                          {analysis.midFunnel.map((t:any, i:any) => <p key={i} className="font-bold flex gap-2"><ChevronRight className="w-4 h-4 shrink-0 text-blue-300"/> {t}</p>)}
+                        <div className="space-y-6 text-sm text-slate-600 pl-4 border-l-4 border-blue-100">
+                          {analysis.midFunnel.map((t:any, i:any) => (
+                            <div key={i} className="space-y-1">
+                              <p className="font-black text-slate-800 flex items-start gap-2 italic uppercase text-xs">
+                                <ChevronRight className="w-4 h-4 shrink-0 text-blue-400 mt-0.5"/> Audience Interest
+                              </p>
+                              <p className="font-medium leading-relaxed pl-6 text-slate-600">{t}</p>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <div className="mt-8 bg-slate-50 p-5 rounded-3xl border border-slate-100 space-y-3">
+                           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><HelpCircle className="w-3 h-3"/> Real Estate Benchmarks</h4>
+                           <ul className="text-[10px] font-bold text-slate-500 space-y-1.5">
+                              <li className="flex justify-between"><span>CPA (Chat):</span> <span className="text-slate-800">&lt; 150-300 THB</span></li>
+                              <li className="flex justify-between"><span>CTR:</span> <span className="text-slate-800">&gt; 1.00%</span></li>
+                              <li className="flex justify-between"><span>CPM:</span> <span className="text-slate-800">150 - 300 THB</span></li>
+                              <li className="flex justify-between"><span>Frequency:</span> <span className="text-slate-800">1.00 - 2.50</span></li>
+                           </ul>
                         </div>
                       </div>
                     </div>
@@ -409,9 +473,7 @@ const App = () => {
                   <div className="absolute -right-8 -bottom-8 opacity-10 group-hover:scale-110 group-hover:-rotate-12 transition-all duration-700"><BarChart2 className="w-48 h-48"/></div>
                   <h3 className="text-blue-400 font-black text-xs mb-1 uppercase tracking-widest italic">Total Ad Spend</h3>
                   <div className="text-5xl font-black italic tracking-tighter">฿{formatMoney(activeCampaigns.reduce((sum, c) => sum + (c.inputs.spend || 0), 0))}</div>
-                  <div className="text-slate-500 text-[10px] mt-4 font-black uppercase tracking-widest">
-                    {selectedProject} | {activeCampaigns.length} Campaigns
-                  </div>
+                  <p className="text-slate-500 text-[10px] mt-4 font-black uppercase tracking-widest">{selectedProject} | {activeCampaigns.length} Campaigns</p>
                 </div>
                 
                 {activeCampaigns.length > 0 && (
