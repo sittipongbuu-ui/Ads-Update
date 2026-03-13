@@ -122,9 +122,9 @@ const App = () => {
   const getAIImageAnalysis = async (imageBase64: string) => {
     if (!apiKey) throw new Error("กรุณาระบุ API Key ก่อน");
     
-    // เปลี่ยนมาใช้โมเดลมาตรฐานที่รองรับแน่นอนคือ gemini-1.5-flash
+    // เปลี่ยนจาก v1beta เป็น v1 และระบุโมเดลที่ถูกต้อง
     const modelName = "gemini-1.5-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
     
     const mimeType = imageBase64.split(';')[0].split(':')[1];
     const base64Data = imageBase64.split(',')[1];
@@ -200,6 +200,7 @@ const App = () => {
     let aiText = inputs.adImageAnalysis;
     setImageAnalysisError(null);
 
+    // ถ้ามีรูป และยังไม่มีบทวิเคราะห์ หรือ AI เคยพลาด ให้ลองใหม่
     if (inputs.adImage && !aiText && apiKey) {
       setIsAnalyzingImage(true);
       try { 
@@ -442,7 +443,7 @@ const App = () => {
             <div className="lg:col-span-2 space-y-6">
               {metrics && analysis ? (
                 <>
-                  <div className={`p-6 rounded-[2rem] border-2 flex items-start gap-5 shadow-lg animate-in zoom-in duration-500 ${analysis.hasIssue ? 'bg-rose-50 border-rose-100 text-rose-900' : 'bg-emerald-50 border-emerald-100 text-emerald-900'}`}>
+                  <div className={`p-6 rounded-[2rem] border-2 flex items-start gap-5 shadow-lg animate-in zoom-in duration-500 ${analysis.hasIssue ? 'bg-rose-50 border-rose-100 text-rose-900 shadow-rose-100/50' : 'bg-emerald-50 border-emerald-100 text-emerald-900 shadow-emerald-100/50'}`}>
                     <div className={`p-3 rounded-2xl ${analysis.hasIssue ? 'bg-rose-100' : 'bg-emerald-100'}`}>
                       {analysis.hasIssue ? <AlertTriangle className="w-6 h-6 text-rose-600"/> : <CheckCircle className="w-6 h-6 text-emerald-600"/>}
                     </div>
@@ -455,7 +456,7 @@ const App = () => {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {[
                       { label: 'CPA (ต้นทุน)', value: `฿${formatMoney(metrics.cpa)}`, status: metrics.cpaStatus, sub: 'Per Results' },
-                      { label: 'CTR (ความน่าสนใจ)', value: `${formatDecimal(metrics.ctr)}%`, status: metrics.ctrStatus, sub: 'Click-through' },
+                      { label: 'CTR (ความสนใจ)', value: `${formatDecimal(metrics.ctr)}%`, status: metrics.ctrStatus, sub: 'Click-through' },
                       { label: 'Freq (ความถี่)', value: formatDecimal(metrics.frequency), status: metrics.freqStatus, sub: 'Ad Repeat' },
                       { label: 'CPM (การแข่งขัน)', value: `฿${formatMoney(metrics.cpm)}`, status: metrics.cpmStatus, sub: 'Per 1K Views' }
                     ].map((item, idx) => (
@@ -504,8 +505,8 @@ const App = () => {
                       </div>
                     ) : (
                       imageAnalysisError && (
-                        <div className="bg-rose-50 p-5 rounded-2xl border border-rose-200 mt-6 flex items-center gap-4 text-rose-800 text-xs font-black uppercase tracking-tight">
-                          <AlertTriangle className="w-5 h-5"/> {imageAnalysisError}
+                        <div className="bg-rose-50 p-5 rounded-2xl border border-rose-200 mt-6 flex items-center gap-4 text-rose-800 text-[11px] font-black uppercase tracking-tight shadow-md">
+                          <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0"/> {imageAnalysisError}
                         </div>
                       )
                     )}
