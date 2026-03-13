@@ -131,7 +131,7 @@ const App = () => {
 
   // ดึงฟังก์ชันเรียก API ออกมาเป็น Helper สำหรับใช้ตอนกดเซฟ
   const getAIImageAnalysis = async (imageBase64) => {
-    const apiKey = "AIzaSyA3cGpZCpVOtR2ry-0RPp-QblytHX2deno"; 
+    const apiKey = "AIzaSyCaTmci5JIUwfEBdTNKIa7ZUqSsDIK_YZ4"; 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
     const mimeType = imageBase64.split(';')[0].split(':')[1];
     const base64String = imageBase64.split(',')[1];
