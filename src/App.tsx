@@ -3,8 +3,8 @@ import {
   Calculator, AlertTriangle, CheckCircle, Info, 
   Eye, MousePointerClick, MessageCircle,
   Image as ImageIcon, MapPin, Users, UploadCloud,
-  Save, Plus, Trash2, History, Sparkles, Loader2,
-  Trophy, LayoutDashboard, BarChart2, Calendar, Clock, Building, Settings, Key,
+  Save, Plus, Trash2, History,
+  Trophy, LayoutDashboard, BarChart2, Calendar, Clock, Building,
   ChevronRight
 } from 'lucide-react';
 
@@ -23,32 +23,12 @@ const defaultInputs = {
   targetInterests: 'สินเชื่อบ้าน, อสังหาริมทรัพย์',
   targetBehaviors: 'ผู้ที่เพิ่งย้ายที่อยู่',
   adImage: null,
-  adImageAnalysis: '',
   spend: 0,
   impressions: 0,
   reach: 0,
   clicks: 0,
   metaLeads: 0, 
   formLeads: 0, 
-};
-
-// ฟังก์ชัน Retry พร้อม Exponential Backoff
-const fetchWithBackoff = async (url: string, options: any, retries = 5) => {
-  let delay = 1000;
-  for (let i = 0; i < retries; i++) {
-    try {
-      const res = await fetch(url, options);
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `HTTP error! status: ${res.status}`);
-      }
-      return await res.json();
-    } catch (err: any) {
-      if (i === retries - 1) throw err;
-      await new Promise(resolve => setTimeout(resolve, delay));
-      delay *= 2;
-    }
-  }
 };
 
 const App = () => {
@@ -61,17 +41,11 @@ const App = () => {
   const [savedCampaigns, setSavedCampaigns] = useState<any[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null); 
   const [isLoaded, setIsLoaded] = useState(false);
-  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
-  const [imageAnalysisError, setImageAnalysisError] = useState<string | null>(null);
-  const [apiKey, setApiKey] = useState<string>('AIzaSyCaTmci5JIUwfEBdTNKIa7ZUqSsDIK_YZ4'); 
-  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     const savedData = localStorage.getItem('realEstateCampaigns');
     const savedProjects = localStorage.getItem('realEstateProjects');
-    const savedKey = localStorage.getItem('gemini_api_key');
     
-    if (savedKey) setApiKey(savedKey);
     if (savedProjects) {
       try {
         const parsed = JSON.parse(savedProjects);
@@ -90,9 +64,8 @@ const App = () => {
     if (isLoaded) {
       localStorage.setItem('realEstateCampaigns', JSON.stringify(savedCampaigns));
       localStorage.setItem('realEstateProjects', JSON.stringify(projects));
-      localStorage.setItem('gemini_api_key', apiKey);
     }
-  }, [savedCampaigns, projects, isLoaded, apiKey]);
+  }, [savedCampaigns, projects, isLoaded]);
 
   const activeCampaigns = savedCampaigns.filter(c => c.inputs.projectName === selectedProject);
 
@@ -111,52 +84,15 @@ const App = () => {
       reader.onloadend = () => {
         setInputs((prev: any) => ({ 
           ...prev, 
-          [fieldName]: reader.result,
-          adImageAnalysis: '' 
+          [fieldName]: reader.result
         }));
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const getAIImageAnalysis = async (imageBase64: string) => {
-    if (!apiKey) throw new Error("กรุณาระบุ API Key ก่อน");
-    
-    // เปลี่ยนจาก v1beta เป็น v1 และระบุโมเดลที่ถูกต้อง
-    const modelName = "gemini-1.5-flash";
-    const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
-    
-    const mimeType = imageBase64.split(';')[0].split(':')[1];
-    const base64Data = imageBase64.split(',')[1];
-
-    const prompt = `คุณคือผู้เชี่ยวชาญการตลาดอสังหาริมทรัพย์ระดับโลก วิเคราะห์ภาพโฆษณานี้และให้คำแนะนำที่ทรงพลังตามฟอร์แมต:
-✅ สิ่งที่ดีแล้ว: [จุดเด่นสั้นๆ 1-2 ข้อ]
-❌ สิ่งที่ยังขาด: [จุดอ่อนที่ต้องแก้สั้นๆ 1-2 ข้อ]
-💡 จุดที่ต้องแก้ด่วน: [ระบุพาดหัวหรือกราฟิกที่ต้องเปลี่ยนเพื่อให้คนคลิกเพิ่ม]`;
-
-    const payload = {
-      contents: [{
-        parts: [
-          { text: prompt },
-          { inlineData: { mimeType: mimeType, data: base64Data } }
-        ]
-      }]
-    };
-
-    const result = await fetchWithBackoff(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    const textResult = result.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!textResult) throw new Error("AI ประมวลผลลัพธ์ไม่สำเร็จ");
-    
-    return textResult;
-  };
-
   const calculateResults = (data: any) => {
-    const totalResults = (data.metaLeads || 0) + (data.formLeads || 0);
+    const totalResults = (Number(data.metaLeads) || 0) + (Number(data.formLeads) || 0);
     if (!data.spend || !data.impressions || totalResults === 0) return null;
 
     const cpm = (data.spend / data.impressions) * 1000;
@@ -171,15 +107,9 @@ const App = () => {
 
     const calculatedMetrics = { cpm, frequency, ctr, cpa, totalResults, cpaStatus, ctrStatus, cpmStatus, freqStatus };
     
-    let topAdvice = [cpmStatus === 'bad' ? `CPM แพง: ตลาดแข่งสูงหรือกลุ่มเป้าหมายแคบเกินไป` : "ต้นทุนการเข้าถึงกลุ่มเป้าหมายอยู่ในเกณฑ์ดี"];
-    let midAdvice = [ctrStatus === 'bad' ? "CTR ต่ำ: งานภาพยังไม่ดึงดูดพอ ต้องเปลี่ยนภาพหรือพาดหัวใหม่" : "งานภาพทำงานได้ดี ดึงดูดสายตาคนได้"];
-    
-    if (data.adImageAnalysis) {
-      const weakness = data.adImageAnalysis.match(/❌\s*สิ่งที่ยังขาด:\s*([^\n]+)/);
-      if (weakness) midAdvice.push(`AI ตรวจพบ: ${weakness[1].trim()}`);
-    }
-
-    let botAdvice = [cpaStatus === 'bad' ? "CPA แพง: ต้องพิจารณาโปรโมชั่นหรือราคาบ้านว่าตรงใจกลุ่มเป้าหมายไหม" : "ต้นทุนรายชื่อลูกค้าเหมาะสม"];
+    let topAdvice = [cpmStatus === 'bad' ? `CPM แพง: ตลาดมีการแข่งขันสูง แนะนำให้ลองขยายกลุ่มเป้าหมาย` : "ต้นทุนการเข้าถึงกลุ่มเป้าหมายเหมาะสม"];
+    let midAdvice = [ctrStatus === 'bad' ? "CTR ต่ำ: งานภาพยังไม่ดึงดูดพอ ควรเปลี่ยนภาพปกหรือพาดหัวใหม่" : "งานภาพทำงานได้ดี ดึงดูดสายตาคนได้"];
+    let botAdvice = [cpaStatus === 'bad' ? "CPA แพง: ลองปรับโปรโมชั่นหรือตรวจสอบคุณภาพ Lead" : "ต้นทุนรายชื่อลูกค้าอยู่ในเกณฑ์ดี"];
     let overallVerdict = cpaStatus === 'bad' ? "แคมเปญประสิทธิภาพต่ำ ต้องปรับปรุงด่วน" : "แคมเปญทำงานได้ดี ควรรักษาระดับนี้ไว้";
 
     return { 
@@ -193,41 +123,27 @@ const App = () => {
     if (res) { setMetrics(res.metrics); setAnalysis(res.analysis); }
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!inputs.campaignName.trim()) { alert("กรุณาตั้งชื่อแคมเปญ"); return; }
-    if (!inputs.spend || !inputs.impressions) { alert("กรุณากรอกตัวเลขงบประมาณและการแสดงผล"); return; }
+    if (!inputs.spend || !inputs.impressions) { alert("กรุณากรอกข้อมูล Spend และ Impressions"); return; }
 
-    let aiText = inputs.adImageAnalysis;
-    setImageAnalysisError(null);
-
-    // ถ้ามีรูป และยังไม่มีบทวิเคราะห์ หรือ AI เคยพลาด ให้ลองใหม่
-    if (inputs.adImage && !aiText && apiKey) {
-      setIsAnalyzingImage(true);
-      try { 
-        aiText = await getAIImageAnalysis(inputs.adImage as string); 
-      } catch (e: any) {
-        setImageAnalysisError(`AI ขัดข้อง: ${e.message}`);
-      }
-      setIsAnalyzingImage(false);
-    }
-
-    const updated = { ...inputs, adImageAnalysis: aiText, projectName: selectedProject };
-    const res = calculateResults(updated);
+    const res = calculateResults(inputs);
     
     if (res) {
       const newId = activeId || Date.now().toString();
       const newCampaign = { 
         id: newId, 
         date: new Date().toLocaleString('th-TH', { dateStyle: 'short' }),
-        inputs: updated, 
+        inputs: { ...inputs, projectName: selectedProject }, 
         metrics: res.metrics, 
         analysis: res.analysis 
       };
       setSavedCampaigns(prev => activeId ? prev.map(c => c.id === activeId ? newCampaign : c) : [newCampaign, ...prev]);
       setActiveId(newId);
-      setInputs(updated); 
       setMetrics(res.metrics); 
       setAnalysis(res.analysis);
+    } else {
+      alert("กรุณากรอกข้อมูลให้ครบถ้วนเพื่อคำนวณผลลัพธ์");
     }
   };
 
@@ -244,9 +160,10 @@ const App = () => {
     if (val === 'NEW') {
       const n = prompt("กรุณาใส่ชื่อโครงการใหม่:");
       if (n && n.trim()) { 
-        setProjects(p => [...p, n.trim()]); 
-        setSelectedProject(n.trim()); 
-        handleNewCampaign(n.trim()); 
+        const trimmed = n.trim();
+        setProjects(p => [...p, trimmed]); 
+        setSelectedProject(trimmed); 
+        handleNewCampaign(trimmed); 
       }
     } else { 
       setSelectedProject(val); 
@@ -292,11 +209,8 @@ const App = () => {
             </div>
             <div>
               <h1 className="text-2xl font-black text-slate-800 tracking-tight italic uppercase">Ads Analyzer <span className="text-blue-600">Pro</span></h1>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Real Estate Marketing Hub</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center md:text-left">Marketing Efficiency Hub</p>
             </div>
-            <button onClick={() => setShowSettings(!showSettings)} className="ml-2 p-2 bg-slate-100 rounded-full hover:bg-blue-50 transition-colors group">
-              <Settings className={`w-5 h-5 transition-transform group-hover:rotate-45 ${apiKey ? 'text-blue-600' : 'text-slate-400'}`}/>
-            </button>
           </div>
           
           <div className="flex gap-3">
@@ -313,29 +227,6 @@ const App = () => {
             </div>
           </div>
         </div>
-
-        {/* API Key Settings */}
-        {showSettings && (
-          <div className="bg-white border-2 border-blue-100 p-6 rounded-3xl shadow-xl animate-in slide-in-from-top-4 duration-300">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="bg-blue-100 p-2 rounded-xl"><Key className="text-blue-600 w-5 h-5"/></div>
-              <div>
-                <h3 className="font-black text-slate-800 uppercase tracking-tight italic">AI Configuration</h3>
-                <p className="text-xs text-slate-500">กรุณาใส่ API Key ของ Google Gemini เพื่อใช้งานการวิเคราะห์ภาพ</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <input 
-                type="password" 
-                value={apiKey} 
-                onChange={(e) => setApiKey(e.target.value)} 
-                placeholder="วาง API Key ที่นี่..." 
-                className="flex-1 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-              />
-              <button onClick={() => setShowSettings(false)} className="bg-blue-600 text-white px-8 rounded-2xl text-sm font-black uppercase tracking-wider shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">บันทึก</button>
-            </div>
-          </div>
-        )}
 
         {viewMode === 'analyze' ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -355,7 +246,7 @@ const App = () => {
 
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Campaign Details</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Campaign Info</label>
                   <input type="text" name="campaignName" value={inputs.campaignName} onChange={handleChange} placeholder="ชื่อแคมเปญ" className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm font-bold bg-blue-50/30 focus:bg-white transition-all outline-none focus:ring-2 focus:ring-blue-200"/>
                   <div className="grid grid-cols-2 gap-2 pt-2">
                     <div className="space-y-1">
@@ -369,6 +260,15 @@ const App = () => {
                           <option value="form">Instant Form</option>
                        </select>
                     </div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase ml-1">Targeting Details</p>
+                  <input type="text" name="targetLocation" value={inputs.targetLocation} onChange={handleChange} placeholder="พื้นที่ปักหมุด" className="w-full p-2.5 border border-slate-200 rounded-xl text-xs"/>
+                  <div className="grid grid-cols-2 gap-2">
+                     <input type="text" name="targetAge" value={inputs.targetAge} onChange={handleChange} placeholder="อายุ" className="p-2.5 border border-slate-200 rounded-xl text-xs"/>
+                     <input type="text" name="targetDemographics" value={inputs.targetDemographics} onChange={handleChange} placeholder="ประชากร" className="p-2.5 border border-slate-200 rounded-xl text-xs"/>
                   </div>
                 </div>
 
@@ -416,7 +316,6 @@ const App = () => {
                       <UploadCloud className="text-slate-300 w-8 h-8"/>
                     </div>
                     <p className="text-xs font-black text-slate-400 uppercase tracking-tight">Upload Creative</p>
-                    <p className="text-[9px] text-slate-300 font-bold uppercase">AI Analysis will start on save</p>
                   </div>
                 )}
               </div>
@@ -424,11 +323,9 @@ const App = () => {
               <div className="flex gap-3">
                 <button 
                   onClick={handleSave} 
-                  disabled={isAnalyzingImage} 
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black shadow-xl shadow-blue-100 flex justify-center items-center gap-2 transition-all disabled:opacity-70 text-[11px] uppercase tracking-widest active:scale-95"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black shadow-xl shadow-blue-100 flex justify-center items-center gap-2 transition-all text-[11px] uppercase tracking-widest active:scale-95"
                 >
-                  {isAnalyzingImage ? <Loader2 className="animate-spin w-4 h-4"/> : <Save className="w-4 h-4"/>} 
-                  {isAnalyzingImage ? 'AI Analyzing...' : (activeId ? 'Update Record' : 'Save & Analyze')}
+                  <Save className="w-4 h-4"/> {activeId ? 'Update Record' : 'Save Campaign'}
                 </button>
               </div>
 
@@ -470,7 +367,7 @@ const App = () => {
 
                   <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl space-y-8 relative overflow-hidden">
                     <h3 className="font-black text-2xl flex items-center gap-3 text-slate-800 italic uppercase tracking-tighter border-b border-slate-50 pb-6">
-                      <Info className="text-blue-500 w-7 h-7"/> Deep Analysis
+                      <Info className="text-blue-500 w-7 h-7"/> Portfolio Analysis
                     </h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
@@ -479,8 +376,8 @@ const App = () => {
                           <BarChart2 className="w-3.5 h-3.5"/> Data Insights
                         </div>
                         <div className="space-y-4 text-sm text-slate-600 pl-4 border-l-4 border-indigo-100">
-                          {analysis.botFunnel.map((t:any, i:any) => <p key={i} className="font-bold leading-relaxed flex gap-2"><ChevronRight className="w-4 h-4 shrink-0 text-indigo-300"/> {t}</p>)}
-                          {analysis.topFunnel.map((t:any, i:any) => <p key={i} className="font-bold leading-relaxed flex gap-2"><ChevronRight className="w-4 h-4 shrink-0 text-indigo-300"/> {t}</p>)}
+                          {analysis.botFunnel.map((t:any, i:any) => <p key={i} className="font-bold flex gap-2"><ChevronRight className="w-4 h-4 shrink-0 text-indigo-300"/> {t}</p>)}
+                          {analysis.topFunnel.map((t:any, i:any) => <p key={i} className="font-bold flex gap-2"><ChevronRight className="w-4 h-4 shrink-0 text-indigo-300"/> {t}</p>)}
                         </div>
                       </div>
 
@@ -489,40 +386,24 @@ const App = () => {
                           <ImageIcon className="w-3.5 h-3.5"/> Creative Feedback
                         </div>
                         <div className="space-y-4 text-sm text-slate-600 pl-4 border-l-4 border-blue-100">
-                          {analysis.midFunnel.map((t:any, i:any) => <p key={i} className="font-bold leading-relaxed flex gap-2"><ChevronRight className="w-4 h-4 shrink-0 text-blue-300"/> {t}</p>)}
+                          {analysis.midFunnel.map((t:any, i:any) => <p key={i} className="font-bold flex gap-2"><ChevronRight className="w-4 h-4 shrink-0 text-blue-300"/> {t}</p>)}
                         </div>
                       </div>
                     </div>
-
-                    {inputs.adImageAnalysis ? (
-                      <div className="bg-slate-900 p-8 rounded-[2rem] shadow-2xl relative overflow-hidden">
-                        <h4 className="font-black text-blue-400 flex items-center gap-2 mb-6 text-xs uppercase tracking-widest italic">
-                          <Sparkles className="w-5 h-5 animate-pulse"/> AI Visual Review
-                        </h4>
-                        <div className="text-sm text-blue-50/90 leading-loose whitespace-pre-wrap font-bold relative z-10 pl-6 border-l border-blue-500/30 italic">
-                          {inputs.adImageAnalysis}
-                        </div>
-                      </div>
-                    ) : (
-                      imageAnalysisError && (
-                        <div className="bg-rose-50 p-5 rounded-2xl border border-rose-200 mt-6 flex items-center gap-4 text-rose-800 text-[11px] font-black uppercase tracking-tight shadow-md">
-                          <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0"/> {imageAnalysisError}
-                        </div>
-                      )
-                    )}
                   </div>
                 </>
               ) : (
                 <div className="bg-white p-32 rounded-[3rem] border-4 border-dashed border-slate-100 flex flex-col items-center justify-center text-center opacity-30">
                   <Calculator className="w-24 h-24 text-slate-300 mb-8"/>
-                  <h3 className="text-2xl font-black text-slate-400 uppercase tracking-widest italic">กรอกข้อมูลและกดบันทึกเพื่อดูผลวิเคราะห์</h3>
+                  <h3 className="text-2xl font-black text-slate-400 uppercase tracking-widest italic">กรอกข้อมูลและกดบันทึก</h3>
+                  <p className="text-sm font-bold text-slate-300 mt-4 max-w-xs mx-auto">ระบบจะประเมินประสิทธิภาพจากตัวเลขโฆษณาของคุณทันทีที่บันทึก</p>
                 </div>
               )}
             </div>
           </div>
         ) : (
-          /* Compare Leaderboard */
-          <div className="space-y-8 animate-in fade-in duration-700">
+          /* Compare Board */
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group">
                   <div className="absolute -right-8 -bottom-8 opacity-10 group-hover:scale-110 group-hover:-rotate-12 transition-all duration-700"><BarChart2 className="w-48 h-48"/></div>
@@ -535,14 +416,14 @@ const App = () => {
                 
                 {activeCampaigns.length > 0 && (
                   <>
-                    <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-center items-center text-center hover:shadow-xl transition-all">
+                    <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-center items-center text-center hover:shadow-xl transition-all group">
                        <h3 className="text-slate-400 font-black text-[10px] mb-4 uppercase tracking-widest italic">CPA Champion 🏆</h3>
-                       <p className="text-base font-black text-slate-800 truncate px-4">{activeCampaigns.reduce((p, c) => p.metrics.cpa < c.metrics.cpa ? p : c).inputs.campaignName}</p>
+                       <p className="text-base font-black text-slate-800 truncate px-4 group-hover:text-blue-600 transition-colors">{activeCampaigns.reduce((p, c) => p.metrics.cpa < c.metrics.cpa ? p : c).inputs.campaignName}</p>
                        <p className="text-4xl font-black italic tracking-tighter text-emerald-600">฿{formatMoney(activeCampaigns.reduce((p, c) => p.metrics.cpa < c.metrics.cpa ? p : c).metrics.cpa)}</p>
                     </div>
-                    <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-center items-center text-center hover:shadow-xl transition-all">
+                    <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-center items-center text-center hover:shadow-xl transition-all group">
                        <h3 className="text-slate-400 font-black text-[10px] mb-4 uppercase tracking-widest italic">CTR Champion 👁️</h3>
-                       <p className="text-base font-black text-slate-800 truncate px-4">{activeCampaigns.reduce((p, c) => p.metrics.ctr > c.metrics.ctr ? p : c).inputs.campaignName}</p>
+                       <p className="text-base font-black text-slate-800 truncate px-4 group-hover:text-blue-600 transition-colors">{activeCampaigns.reduce((p, c) => p.metrics.ctr > c.metrics.ctr ? p : c).inputs.campaignName}</p>
                        <p className="text-4xl font-black italic tracking-tighter text-purple-600">{formatDecimal(activeCampaigns.reduce((p, c) => p.metrics.ctr > c.metrics.ctr ? p : c).metrics.ctr)}%</p>
                     </div>
                   </>
@@ -559,9 +440,9 @@ const App = () => {
                  <table className="w-full text-left text-sm border-collapse">
                    <thead className="bg-slate-50 text-slate-400 uppercase text-[10px] font-black tracking-widest">
                      <tr>
-                       <th className="p-8">Ad Creative</th>
-                       <th className="p-8">Campaign Details</th>
-                       <th className="p-8 text-right">Spend</th>
+                       <th className="p-8">Visual</th>
+                       <th className="p-8">Details</th>
+                       <th className="p-8 text-right">Ad Spend</th>
                        <th className="p-8 text-right text-blue-600">CPA</th>
                        <th className="p-8 text-right">CTR</th>
                        <th className="p-8 text-center">Manage</th>
@@ -572,7 +453,7 @@ const App = () => {
                        <tr key={c.id} className="hover:bg-blue-50/40 transition-all group">
                          <td className="p-8">
                            <div className="w-20 h-20 rounded-[1.5rem] bg-slate-100 overflow-hidden border-4 border-white shadow-lg group-hover:scale-110 transition-transform">
-                             {c.inputs.adImage ? <img src={c.inputs.adImage as string} className="w-full h-full object-cover"/> : <ImageIcon className="w-6 h-6 text-slate-300 m-7"/>}
+                             {c.inputs.adImage ? <img src={c.inputs.adImage as string} className="w-full h-full object-cover"/> : <div className="flex items-center justify-center h-full text-slate-300"><ImageIcon className="w-6 h-6"/></div>}
                            </div>
                          </td>
                          <td className="p-8">
@@ -582,16 +463,22 @@ const App = () => {
                          <td className="p-8 text-right font-black text-slate-600">฿{formatMoney(c.inputs.spend)}</td>
                          <td className={`p-8 text-right font-black italic text-xl ${getStatusColor(c.metrics.cpaStatus).split(' ')[2]}`}>฿{formatMoney(c.metrics.cpa)}</td>
                          <td className="p-8 text-right font-black text-slate-800 italic">{formatDecimal(c.metrics.ctr)}%</td>
-                         <td className="p-8">
+                         <td className="p-8 text-center">
                            <div className="flex justify-center gap-3">
-                             <button onClick={() => handleLoadCampaign(c)} className="p-3 text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-600 hover:text-white transition-all"><Eye className="w-5 h-5"/></button>
-                             <button onClick={(e) => handleDeleteCampaign(c.id, e)} className="p-3 text-rose-400 bg-rose-50 rounded-xl hover:bg-rose-500 hover:text-white transition-all"><Trash2 className="w-5 h-5"/></button>
+                             <button onClick={() => handleLoadCampaign(c)} className="p-3 text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-90"><Eye className="w-5 h-5"/></button>
+                             <button onClick={(e) => handleDeleteCampaign(c.id, e)} className="p-3 text-rose-400 bg-rose-50 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm active:scale-90"><Trash2 className="w-5 h-5"/></button>
                            </div>
                          </td>
                        </tr>
                      ))}
                    </tbody>
                  </table>
+                 {activeCampaigns.length === 0 && (
+                    <div className="p-32 text-center flex flex-col items-center">
+                       <Calculator className="w-16 h-16 text-slate-200 mb-4"/>
+                       <p className="text-slate-400 font-black uppercase tracking-widest italic">No Campaigns Recorded</p>
+                    </div>
+                 )}
                </div>
              </div>
           </div>
